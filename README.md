@@ -1,140 +1,60 @@
-# DiPlay — Geely E01
+DiPlay — 吉利 E01
+适用于吉利星瑞 2021 E01主机的 CarPlay — ECARX E01 (MediaTek MT6735) 设备，在Android 5.1 (API 22)上运行 GKUI 19 。
 
-CarPlay for the **Geely Xingrui (吉利星瑞) 2021 E01** head unit — an ECARX E01
-(MediaTek MT6735) unit running GKUI 19 on **Android 5.1 (API 22)**.
+这是Programmerguohuajing/DiPlay-Legacy-Android的一个分支，而 Programmerguohuajing/DiPlay-Legacy-Android 本身又是shihabal3amri/DiPlay的一个分支。这里描述的所有内容要么是吉利特有的功能，要么是从上游移植过来的品牌中立功能。 上游的比亚迪特有功能不在本分支的范围内，因此这里没有相关文档。
 
-This is a fork of [programmerguohuajing/DiPlay-Legacy-Android](https://github.com/programmerguohuajing/DiPlay-Legacy-Android),
-which is itself a fork of [shihabal3amri/DiPlay](https://github.com/shihabal3amri/DiPlay).
-Everything described here is either Geely-specific work or brand-neutral work ported from upstream.
-**Upstream's BYD-specific features are out of scope for this fork and are not documented here.**
+版本：（ 0.3.3-geely-rc版本号 33）· 应用 IDcom.shihab.diplay
 
-**Version:** `0.3.3-geely-rc` (versionCode 33) · App id `com.shihab.diplay`
+已在车上核实
+方向盘切换下一/上一曲目	✅适用于汽车。 DiPlay-MediaKeys: media key -> CarPlay 4/5 sent=true
+吉利方向盘没有播放/暂停键	该位置是主机自带的飞屏按钮。它仅通过厂商的AIDL层进行路由PopView，不会进入Android按键流程，因此任何应用都无法访问它。
+方向盘是难点所在，而真正有效的解决方法并非上游的处理方式。在这个主机上，方向盘的输入信号会经过车辆自身的输入服务，该服务会将每次按键作为标准信号重新发送 ACTION_MEDIA_BUTTON。DiPlay 的媒体会话声明了flags=0媒体按钮接收器，但没有，因此框架会将每次按键都传递给之前控制方向盘的应用程序。声明 FLAG_HANDLES_MEDIA_BUTTONS媒体按钮接收器并添加一个媒体按钮接收器后，问题就解决了——dumpsys media_session从flags=0 / mediaButtonReceiver=null变成了flags=3 / PendingIntent{...}。
 
-## Verified on the car
+上游构建的通用辅助功能过滤器和 ECARX 供应商密钥代码仍然保留在代码库中，作为其他主机单元的备用方案。但在这里，两者都不需要：GKUI 19 在这辆车上没有公开辅助功能设置选项，因此无法在不使用 ADB 的情况下启用该路径。
 
-| | |
-|---|---|
-| **Steering-wheel next / previous track** | ✅ **Works on the car.** `DiPlay-MediaKeys: media key -> CarPlay 4/5 sent=true` |
-| **Geely wheel has no play/pause key** | The position is the head unit's own screen-mirroring (飞屏) button. It is routed only through the vendor AIDL layer to `PopView` and never enters the Android key pipeline, so no app can reach it. |
+尚未在汽车上验证：USB 权限自动确认、诊断导出回退、音频停止时间线和无线启动诊断。
 
-The wheel was the hard part, and the fix that mattered was **not** what upstream does. On this head
-unit the wheel goes through the car's own input service, which re-emits each press as a standard
-`ACTION_MEDIA_BUTTON`. DiPlay's media session declared `flags=0` and had no media-button receiver, so
-the framework handed every press to whichever app held the wheel before. Declaring
-`FLAG_HANDLES_MEDIA_BUTTONS` plus a media-button receiver fixed it — `dumpsys media_session` went
-from `flags=0 / mediaButtonReceiver=null` to `flags=3 / PendingIntent{...}`.
+这个分支增加了什么
+吉利方向盘钥匙	见上文。媒体会话标志 + 接收器；辅助功能过滤器和 ECARX 密钥代码作为备用方案。
+汽车热点	DiPlay 现在会直接开启主机自身的热点setWifiApEnabled，并保留车辆现有的热点配置，而无需驾驶员手动启用。由于重新连接会断开车辆与当前网络的连接，因此只有在重试后才会解除站点模式。故障会按类型报告：固件拒绝授权、车辆拒绝连接或热点未及时报告已启用。
+无线启动诊断	当无线连接中断时，报告现在会指出中断的具体步骤，以及接口状态、Bonjour 发现计数器和内核接收/UDP 计数器。此操作仅用于观察，不会更改连接截止时间、地址选择或重试行为。
+USB连接过滤器	添加了 Apple 供应商 ID；现在即使 iPhone 冷插拔也不会无法启动 DiPlay 了。
+USB权限自动确认	移除系统的 USB 授权提示。它只会响应系统对话框，绝不会代表其他应用程序执行此操作。
+USBMUX帧	允许在控制回复后添加 4 字节的填充，这曾经会导致连接因协议错误而中止。
+声音的	UDP 接收缓冲区增加到 512 KB，加上停顿时间线（最大到达间隔、序列间隙）。
+触控延迟	Nagle 算法在触摸事件通道上被禁用，因此手势不再批量到达。
+诊断导出	对于没有文件选择器的主机，有三种回退方式，并且可以在屏幕上显示报告，以便通过长按进行复制。
+Android 5 设置页面	开关不再显示其开/关字样，这是 Android 5 布局错误导致的。
+有线连接故障	运行时配置要求在配置手动热点模式时（无论有线还是无线），都必须手动设置热点 SSID，这会导致有线连接无法启动。现在，此问题仅适用于无线连接。
+比亚迪代码已关闭	SOME/IP HUD 桥接器现在会在绑定之前检查其网关是否已安装，因此吉利车载主机不再重试永远无法连接的服务——以前每 300 毫秒就会重试一次。
+安装
+安装在汽车上，而不是iPhone上。无需越狱、加密狗或Mac电脑。
 
-The generic accessibility filter and the ECARX vendor key codes upstream built are **still in the
-tree as fallbacks for other head units**. Neither was needed here: GKUI 19 does not expose an
-accessibility settings entry on this car, so that path cannot be switched on without ADB.
+⚠️ 此 APK 使用的签名密钥与上游版本不同，因此无法覆盖安装。 请先卸载：
 
-Not yet verified on a car: USB permission auto-confirm, the diagnostic-export fallback, the audio
-stall timeline, and the wireless startup diagnostics.
-
-## What this fork adds
-
-| | |
-|---|---|
-| **Geely steering-wheel keys** | See above. Media session flags + receiver; the accessibility filter and ECARX key codes stay as fallbacks. |
-| **Car hotspot** | DiPlay now switches the head unit's own hotspot on through `setWifiApEnabled`, keeping the car's existing hotspot configuration, instead of telling the driver to go and enable it. Station mode is released only on a retry, since that disconnects the car from whatever network it is on. Failures are reported by kind: firmware withholding the permission, the car refusing, or the hotspot not reporting itself enabled in time. |
-| **Wireless startup diagnostics** | When a wireless connection stalls, the report now says **which step it stalled at**, plus interface state, Bonjour discovery counters and kernel receive/UDP counters. Observation only — it does not change connection deadlines, address selection or retry behaviour. |
-| **USB attach filter** | Added the Apple vendor id; plugging in an iPhone cold no longer fails to launch DiPlay. |
-| **USB permission auto-confirm** | Removes the system's USB authorisation prompt. It answers only the system dialog, never on behalf of another app. |
-| **USBMUX framing** | Tolerates the 4-byte padding after a control reply, which used to abort the connection with a protocol error. |
-| **Audio** | UDP receive buffer raised to 512 KB, plus a stall timeline (largest inter-arrival gap, sequence gaps). |
-| **Touch latency** | Nagle's algorithm disabled on the touch event channel, so gestures no longer arrive in batches. |
-| **Diagnostic export** | Falls back three ways on head units with no file picker, and can show the report on screen for copy-by-long-press. |
-| **Android 5 settings page** | Switches no longer render their on/off captions, which Android 5 laid out incorrectly. |
-| **Wired connection crash** | The runtime config required a manual hotspot SSID whenever manual hotspot mode was configured, wired or not, which aborted wired bring-up. It now applies to wireless only. |
-| **BYD code gated off** | The SOME/IP HUD bridge now checks its gateway is installed before binding, so a Geely head unit no longer retries a service it can never reach — that retry used to run every 300 ms. |
-
-## Install
-
-Install on the **car**, not the iPhone. No jailbreak, dongle or Mac is required.
-
-⚠️ **This APK is signed with a different key from upstream's, so it cannot be installed over it.**
-Uninstall first:
-
-```sh
 adb uninstall com.shihab.diplay
 adb install -r DiPlay-Legacy-Geely-V033.apk
-```
+卸载应用会丢失所有设置（分辨率、音频缓冲、方向盘按键功能、已保存的 Wi-Fi 凭据）。如果没有 ADB 工具，请将 APK 文件复制到 U 盘，然后通过车载主机的文件管理器安装，并允许安装“未知来源”的应用。
 
-Uninstalling loses the app's settings (resolution, audio buffer, wheel-key roles, saved Wi-Fi
-credentials). Without ADB, copy the APK to a USB stick and install it from the head unit's file
-manager with "unknown sources" allowed.
+主机必须允许安装APK文件。
 
-The head unit must permit APK installation.
+平台说明
+参考车辆的Android 版本为 5.1 / API 22，而非 4.4——这是实际测量结果，而非假设值ro.build.version.release=5.1。ro.build.version.sdk=22此分支保留了 API 19 的最低版本要求，因此仍可兼容较旧的车载主机，但目标版本为 5.1，并且每个移植的组件都经过了这两个版本的验证。
 
-## Platform notes
+E01 内存严重不足：MemFree仅占用26–33 MB，而实际AnonPages可用内存约为 1.05 GB。这是决定移植哪些功能的关键限制因素，而不仅仅是 API 级别。
 
-The reference car is **Android 5.1 / API 22**, not 4.4 — measured, not assumed
-(`ro.build.version.release=5.1`, `ro.build.version.sdk=22`). This fork keeps an
-**API 19 floor** so it still builds for older head units, but 5.1 is the target, and every ported
-piece is checked against both.
+上游对齐
+此分支基于上游 DiPlay v0.2.7。最新的检查结果来自上游main 5e58b4b （2026-10-07）：此后有 19 个非合并提交e2fd8ea，仍处于v0.2.13标签，且这些提交均未被移植。对齐是一个分阶段进行的计划，而非合并：两者没有共享历史记录，上游目标平台为 Android 9（最低 SDK 版本 28），而此分支的最低版本为 API 19，因此每个移植的组件都必须针对旧平台进行检查。
 
-E01 is memory-starved: `MemFree` sits at **26–33 MB**, with `AnonPages` around 1.05 GB. That is the
-binding constraint on what is worth porting, not the API level alone.
+特征组	状态
+方向盘钥匙	已完成，已在车上验证。见上文。上游的地图缩放和操纵杆功能在同一服务中驱动比亚迪仪表盘，而这辆车没有配备。
+无线连接	部分功能已实现。车载热点接管和无线启动诊断功能已实现。同源局域网/现有 Wi-Fi 尚未移植，但在此方案中可行。Wi-Fi Direct 群组恢复和首选信道选择功能暂无计划：上游版本已将其标记@RequiresApi(Q)为 API 29，而此车辆的 API 版本为 22。
+有线/USB	部分对齐 — 附加过滤器、USBMUX 帧、权限自动确认。
+协议和音频	部分对齐——UDP接收缓冲区和停顿诊断。暂无缓冲音频的计划（见下文）。
+界面和设置	尚未开始。
+稳定性修复	尚未开始。
+故意超出范围：
 
-## Upstream alignment
-
-This fork's base is upstream DiPlay **v0.2.7**. The latest check is upstream `main` `5e58b4b`
-(2026-10-07): 19 non-merge commits after `e2fd8ea`, still on the **v0.2.13** tag, and none of them
-were ported. Aligning is a staged program, not a merge: the two share no history, and upstream
-targets Android 9 (minSdk 28) while this fork keeps an API 19 floor, so every ported piece has to
-be checked against the older platform.
-
-| Feature group | State |
-|---|---|
-| **Steering-wheel keys** | **Done, verified on the car.** See above. Upstream's map zoom and joystick on the same service drive a BYD dashboard this car does not have. |
-| **Wireless connection** | **Partly aligned.** Car hotspot takeover, and the wireless startup diagnostics, are in. Same LAN / existing Wi-Fi is not yet ported but is feasible here. Wi-Fi Direct group recovery and preferred-channel selection are **not planned**: upstream marks them `@RequiresApi(Q)` (API 29) and this car is API 22. |
-| **Wired / USB** | Partly aligned — attach filter, USBMUX framing, permission auto-confirm. |
-| **Protocol and audio** | Partly aligned — UDP receive buffer and stall diagnostics. Buffered audio is **not planned** (see below). |
-| **Interface and settings** | Not started. |
-| **Stability fixes** | Not started. |
-
-Deliberately out of scope:
-
-- **BYD hardware** — DiLink 3/4/5 cluster projection, BYD HUD navigation, CAN battery reporting.
-  This head unit has no counterpart. The code stays in the tree so upstream syncs stay cheap.
-- **Buffered audio** (`BufferedAudioStream`) — a large new subsystem whose whole point is trading
-  memory for smoothness. On a unit with 26–33 MB free that is the wrong trade, and upstream ships it
-  disabled by default.
-- **Android multi-window / split screen** — GKUI has no split screen, so CarPlay is always full
-  screen here. (CarPlay *view areas* are an iAP2 protocol feature and would work; the head unit just
-  never gives DiPlay a smaller window to use them for.)
-
-## Documentation
-
-- [Release notes](CHANGELOG.md)
-- [Build from source](docs/BUILD.md)
-- [Install and connect](docs/INSTALL.md)
-- [Compatibility and troubleshooting](docs/COMPATIBILITY.md)
-- [Privacy and diagnostic reports](docs/PRIVACY.md)
-- [Validation](docs/VALIDATION.md)
-- [Credits and licenses](docs/THIRD_PARTY_NOTICES.md)
-
-## Source and credits
-
-Based on [xcertplay](https://github.com/shilapi/xcertplay), GPL-3.0. The home/settings UI and website
-adapt [DiAuto](https://github.com/shihabal3amri/DiAuto), AGPL-3.0; that license is included in
-`docs/licenses`. Preserve those notices when distributing modifications. CarPlay and its icon belong
-to Apple Inc.; no Apple, Geely or ECARX affiliation or endorsement is implied.
-
-This repository starts with a clean public source snapshot. Local research, tester reports and
-release-signing secrets are excluded. The complete source corresponding to the APK is provided with
-every release; experimental runtime identity assets are described separately in the build
-instructions and notices.
-
-This is **not an Apple-certified product**. The APK bundles an experimental accessory identity
-recovered from public Carlinkit firmware, not a newly provisioned MFi identity. A bundled private key
-is extractable. Acceptance after future iOS updates, reliability across head units and suitability of
-that identity for general distribution are unresolved.
-
-## Local release packaging
-
-The release APK intentionally contains the experimental accessory identity. The Git repository and
-source archive exclude all accessory and Android signing keys; tests generate synthetic identities at
-runtime. Source/CI builds omit runtime identity assets by default. Local release builds explicitly
-select an external asset directory. Publishing the APK makes its bundled identity extractable;
-building locally does not preserve that identity's confidentiality.
+比亚迪硬件——DiLink 3/4/5仪表盘投影、比亚迪HUD导航、CAN总线电池电量报告。这款主机没有同类产品。代码保留在代码库中，因此上游同步成本很低。
+缓冲音频（ Buffered Audio BufferedAudioStream）——一个庞大的新子系统，其核心思想是用内存换取流畅的音频体验。对于只有 26–33 MB 可用内存的设备来说，这种做法并不明智，因此上游默认禁用了该功能。
+Android 多窗口/分屏——GKUI 没有分屏功能，所以 CarPlay 在这里始终全屏显示。（CarPlay 的视图区域是 iAP2 协议的功能，理论上可以正常工作；只是主机不会给 CarPlay 提供一个较小的窗口来使用这些视图区域。）
