@@ -565,7 +565,10 @@ class DiPlayActivity : ComponentActivity() {
         if (ClusterMapPresentation.findDisplay(this) != null) section(content, getString(R.string.instrument_cluster_map), R.drawable.ic_dp_navigation) { card ->
             toggle(card, getString(R.string.carplay_map_on_instrument_cluster_experimental),
                 getString(R.string.shows_the_iphone_s_cluster_map_on_the_instrument_cluster_c),
-                AirPlayPersistence.loadClusterMapEnabled(this)) {
+                // Unset means "on by default where a cluster display exists"; once the driver
+                // chooses, their stored value wins.
+                AirPlayPersistence.loadClusterMapPreference(this)
+                    ?: (ClusterMapPresentation.findDisplay(this) != null)) {
                 AirPlayPersistence.saveClusterMapEnabled(this, it)
                 reconnectForClusterMap()
             }

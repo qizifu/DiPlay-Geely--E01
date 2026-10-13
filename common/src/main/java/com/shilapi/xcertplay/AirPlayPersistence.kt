@@ -431,6 +431,17 @@ object AirPlayPersistence {
     fun loadClusterMapEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CLUSTER_MAP, false)
 
+    /**
+     * The driver's cluster-map choice, or null when they have never made one.
+     *
+     * Null lets the caller pick a device-appropriate default (on for a head unit that actually
+     * exposes a cluster display) instead of forcing BYD's original off.
+     */
+    fun loadClusterMapPreference(context: Context): Boolean? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return if (prefs.contains(KEY_CLUSTER_MAP)) prefs.getBoolean(KEY_CLUSTER_MAP, false) else null
+    }
+
     fun saveClusterMapEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_CLUSTER_MAP, enabled).apply()
     }

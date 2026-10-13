@@ -703,6 +703,17 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     // Experimental: the CarPlay instrument-cluster stream on the BYD cluster projection display.
+    /**
+     * Whether the cluster map is on.
+     *
+     * The cluster map draws AirPlay's alt-screen stream on a public presentation display, so a head
+     * unit that actually has one (the Geely E01's "HDMI \u5c4f\u5e55") gets it on by default. A stored
+     * choice, once the driver makes it, always wins.
+     */
+    private fun clusterMapEnabled(): Boolean =
+        AirPlayPersistence.loadClusterMapPreference(this)
+            ?: (ClusterMapPresentation.findDisplay(this) != null)
+
     private fun effectiveClusterTheme(): DiLink51ClusterLayout.Theme =
         if (DiLink51ClusterLayout.automatic(this)) detectedCluster.theme ?: DiLink51ClusterLayout.theme(this)
         else DiLink51ClusterLayout.theme(this)
@@ -710,12 +721,12 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun onClusterActivityState(state: ClusterActivityState.Snapshot) {
         if (state != detectedCluster) appendLog("Cluster map: detected theme=${state.theme} mapVisible=${state.mapVisible}")
         detectedCluster = state
-        if (!AirPlayPersistence.loadClusterMapEnabled(this)) { dismissClusterPresentation(); return }
+        if (!clusterMapEnabled()) { dismissClusterPresentation(); return }
         ensureClusterPresentation()
     }
 
     private fun ensureClusterPresentation() {
-        if (!AirPlayPersistence.loadClusterMapEnabled(this)) {
+        if (!clusterMapEnabled()) {
             dismissClusterPresentation()
             return
         }
@@ -807,7 +818,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun clusterDisplayConfig(): AirPlayDisplayConfig? {
-        if (!AirPlayPersistence.loadClusterMapEnabled(this)) return null
+        if (!clusterMapEnabled()) return null
         val theme = effectiveClusterTheme()
         val display = ClusterMapPresentation.findDisplay(this, theme) ?: return null
         val size = ClusterMapPresentation.sizeOf(display)
@@ -816,6 +827,15 @@ class CarPlayHostActivity : ComponentActivity() {
             val plan = DiLink51ClusterLayout.plan(size.x, size.y, theme) ?: return null
             return DiLink51ClusterLayout.streamConfig().also {
                 appendLog("Cluster map: fixed 1920x720 stream; layout=$theme viewport=$plan")
+            }
+        }
+        // A plain second display (Geely E01): full-panel stream, no BYD layer geometry.
+        if (GeelyClusterLayout.findDisplay(this) != null) {
+            return GeelyClusterLayout.streamConfig().also {
+                appendLog(
+                    "Cluster map: Geely cluster stream ${it.widthPixels}x${it.heightPixels} " +
+                        "safeArea=${it.safeArea} url=${it.initialUrl}",
+                )
             }
         }
         return CarPlayClusterDisplay.config(

@@ -140,7 +140,12 @@ internal class ClusterMapPresentation(
                 ?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION) ?: return null
             val name = DiLink51ClusterLayout.displayName(
                 displays.map { it.name }, android.os.Build.FINGERPRINT, theme,
-            ) ?: return null
+            )
+            if (name == null) {
+                // Not a BYD projection layer: fall back to this firmware's own cluster panel.
+                // The Geely E01 exposes it as an ordinary presentation display ("HDMI \u5c4f\u5e55").
+                return GeelyClusterLayout.findDisplay(context)
+            }
             return displays.firstOrNull { it.name == name }?.takeIf {
                 if (!DiLink51ClusterLayout.supported()) true else {
                     val size = sizeOf(it)
