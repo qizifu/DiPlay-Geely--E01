@@ -730,6 +730,10 @@ class CarPlayHostActivity : ComponentActivity() {
             dismissClusterPresentation()
             return
         }
+        // Ask the vendor stack to route the instrument display to DiPlay. This needs the
+        // privileged CAR_VENDOR_EXTENSION permission; without it this logs the failing stage and
+        // the presentation below still appears once the instrument is awake by any other means.
+        EcarxDimActivation.activate(this, ::appendLog)
         val theme = effectiveClusterTheme()
         if (DiLink51ClusterLayout.supported()) {
             ensureDiLink51ClusterPresentation(theme)

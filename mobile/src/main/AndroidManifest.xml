@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        ECARX vendor extension: needed to reach DimInteraction.setPresentationToDimSwitch, which
+        routes the cluster display to us. signature|system, so it is only granted to a privileged
+        (system-image) install; a normal install still builds and runs, it just cannot switch the
+        instrument on by itself.
+    -->
+    <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION" />
+
     <application
         android:name="androidx.multidex.MultiDexApplication"
         android:allowBackup="false"
